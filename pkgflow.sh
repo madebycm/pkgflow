@@ -11,6 +11,89 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Check if script is being run with install flag
+if [ "$1" = "--install" ]; then
+    echo -e "${BLUE}Installing PKGFlow...${NC}"
+    
+    # Create local bin directory if it doesn't exist
+    LOCAL_BIN="$HOME/.local/bin"
+    mkdir -p "$LOCAL_BIN"
+    
+    # Copy script to local bin (always overwrites to ensure latest version)
+    SCRIPT_PATH="$LOCAL_BIN/pkgflow"
+    cp -f "$0" "$SCRIPT_PATH"
+    chmod +x "$SCRIPT_PATH"
+    echo -e "${GREEN}✓ Installed latest version to $SCRIPT_PATH${NC}"
+    
+    # Add to PATH if not already present
+    if [[ ! "$PATH" == *"$LOCAL_BIN"* ]]; then
+        # Detect which shell config file to use
+        if [ -f "$HOME/.zshrc" ]; then
+            SHELL_CONFIG="$HOME/.zshrc"
+        elif [ -f "$HOME/.bashrc" ]; then
+            SHELL_CONFIG="$HOME/.bashrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            SHELL_CONFIG="$HOME/.bash_profile"
+        else
+            SHELL_CONFIG="$HOME/.profile"
+        fi
+        
+        echo "" >> "$SHELL_CONFIG"
+        echo "# Add PKGFlow to PATH" >> "$SHELL_CONFIG"
+        echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$SHELL_CONFIG"
+        
+        echo -e "${GREEN}✓ Added $LOCAL_BIN to PATH in $SHELL_CONFIG${NC}"
+        echo -e "${YELLOW}Path will be available after restarting your shell${NC}"
+        
+        # Source the config file for immediate use
+        export PATH="$HOME/.local/bin:$PATH"
+    else
+        echo -e "${GREEN}✓ $LOCAL_BIN is already in PATH${NC}"
+    fi
+    
+    echo -e "${GREEN}✓ Installation complete!${NC}"
+    echo -e "${BLUE}You can now use 'pkgflow' from anywhere${NC}"
+    
+    # Test if pkgflow is accessible
+    if command -v pkgflow &> /dev/null; then
+        echo -e "${GREEN}✓ pkgflow command is ready to use${NC}"
+    else
+        echo -e "${YELLOW}Note: You may need to restart your terminal for PATH changes to take effect${NC}"
+    fi
+    
+    exit 0
+fi
+
+# Check if script is being run with uninstall flag
+if [ "$1" = "--uninstall" ]; then
+    echo -e "${YELLOW}Uninstalling PKGFlow...${NC}"
+    
+    # Remove pkgflow from local bin
+    LOCAL_BIN="$HOME/.local/bin"
+    SCRIPT_PATH="$LOCAL_BIN/pkgflow"
+    
+    if [ -f "$SCRIPT_PATH" ]; then
+        rm "$SCRIPT_PATH"
+        echo -e "${GREEN}✓ Removed pkgflow from $LOCAL_BIN${NC}"
+    else
+        echo -e "${YELLOW}pkgflow not found in $LOCAL_BIN${NC}"
+    fi
+    
+    # Note about PATH cleanup
+    echo -e "${YELLOW}Note: PATH entries in your shell config were not modified${NC}"
+    echo -e "${YELLOW}To clean up PATH, manually edit your shell config file${NC}"
+    
+    # Check if pkgflow is still accessible
+    if ! command -v pkgflow &> /dev/null; then
+        echo -e "${GREEN}✓ pkgflow command successfully removed${NC}"
+    else
+        echo -e "${YELLOW}Warning: pkgflow might still be installed elsewhere${NC}"
+    fi
+    
+    echo -e "${GREEN}✓ Uninstallation complete!${NC}"
+    exit 0
+fi
+
 # Clear screen
 clear
 

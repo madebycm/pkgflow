@@ -1,31 +1,78 @@
-# PKGFlow
+# PKGFlow 📦
 
-PKGFlow automatically mounts DMG files and extracts `.pkg` installers, then presents an interactive menu for package selection and installation.
+Hey there! Welcome to PKGFlow - your friendly macOS package installer that makes installing multiple `.pkg` files a breeze.
 
-Initially built to help install a massive library of VST plugins, but works with any DMG containing `.pkg` installers, or simply pure `.pkg` files.
+## What's PKGFlow?
 
-## Features
+PKGFlow is a handy command-line tool that helps you install multiple macOS packages at once. Whether you have `.dmg` files with installers inside them, or standalone `.pkg` files, PKGFlow's got you covered! 
 
-- Automatically mounts DMG files and extracts `.pkg` installers
-- Interactive selection of packages to install
-- Supports multiple DMG processing in a single session
-- Shows package verification status
-- Multi-platform architecture support
+We originally built this to make installing VST plugins easier, but it works great for any macOS packages.
 
-## Usage
+## What Can It Do?
 
+- 🎯 Works with both `.dmg` files and `.pkg` files
+- 📦 Automatically finds and extracts packages from DMG files
+- ✅ Let's you pick and choose which packages to install
+- 🚀 Installs multiple packages in one go
+- 🧹 Cleans up after itself (no leftover mounted volumes!)
+
+## Getting Started
+
+### Installation
+
+To install PKGFlow globally so you can use it from anywhere:
+
+```bash
+./pkgflow.sh --install
+```
+
+This will:
+- Copy the script to `~/.local/bin/pkgflow`
+- Add `~/.local/bin` to your PATH (if needed)
+- Make the `pkgflow` command available anywhere
+
+### Uninstallation
+
+To uninstall PKGFlow:
+
+```bash
+./pkgflow.sh --uninstall
+```
+
+Or if you've already installed it:
+
+```bash
+pkgflow --uninstall
+```
+
+This will:
+- Remove the `pkgflow` command from `~/.local/bin`
+- Note: PATH entries in shell config are left unchanged for safety
+
+### Usage
+
+After installation, you can run PKGFlow from any directory:
+```bash
+pkgflow
+```
+
+Or, if you haven't installed it yet, run it directly:
 ```bash
 ./pkgflow.sh
 ```
 
-## Example Output
+That's it! PKGFlow will find all the installable packages in your current directory and show you a nice menu.
+
+## What You'll See
+
+Here's what the interface looks like:
 
 ```
 Package Selection:
 ==================
 1. [X] Shadow_Hills_Mastering_Compressor_Shadow Hills Mastering Compressor Installer.pkg (from DMG)
 2. [X] Scaler 3_Scaler 3 Installer.pkg (from DMG)
-3. [X] Mastering_Compressor_Bettermaker Mastering Compressor Installer.pkg (from DMG)
+3. [ ] Some_Other_Package.pkg
 4. [X] ADPTR_Hype_ADPTR Hype Installer.pkg (from DMG)
 
 Options:
@@ -38,32 +85,40 @@ Options:
 Choice: 
 ```
 
-## Options
+## How to Use It
 
-- **Package number**: Toggle selection of a specific package
-- **'a'**: Select all packages
-- **'n'**: Deselect all packages
-- **'i'**: Install selected packages
-- **'q'**: Quit the program
+- **Type a number**: Toggle that package on/off
+- **Type 'a'**: Select everything
+- **Type 'n'**: Deselect everything
+- **Type 'i'**: Install your selected packages
+- **Type 'q'**: Exit without installing
 
-## Requirements
+## What You'll Need
 
-- macOS
-- Administrative privileges (for package installation)
-- DMG files containing `.pkg` installers
+- A Mac (obviously! 😄)
+- Admin password (for installing packages)
+- Some `.dmg` or `.pkg` files to install
 
-## How It Works
+## Behind the Scenes
 
-1. The script searches for DMG files in the current directory
-2. Mounts each DMG file temporarily
-3. Extracts `.pkg` files from mounted volumes
-4. Presents an interactive menu for package selection
-5. Installs selected packages using the system installer
-6. Cleans up by unmounting DMG files and removing temporary files
+Here's what PKGFlow does for you:
 
-## Notes
+1. Looks for `.dmg` and `.pkg` files in your current directory
+2. Mounts any DMG files it finds
+3. Extracts the `.pkg` installers from inside
+4. Shows you all available packages in one neat list
+5. Installs your selections using macOS's built-in installer
+6. Cleans everything up when done
 
-- All packages are marked as "Unverified" when extracted from DMG files
-- Installation requires sudo privileges
-- Selected packages are marked with `[X]` in the interface
-- The script creates a temporary extraction directory that is cleaned up after use
+## Good to Know
+
+- Packages from DMG files show "(from DMG)" in the list
+- You'll need to enter your admin password when installing
+- Selected packages have an `[X]` next to them
+- Everything gets cleaned up automatically - no manual unmounting needed!
+
+## About
+
+Made with ❤️ by madebycm, 2025
+
+Happy installing! 🎉
