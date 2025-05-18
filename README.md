@@ -1,8 +1,8 @@
-# PKG Installer
+# PKGFlow
 
-A command-line tool for extracting and installing `.pkg` files from DMG images on macOS.
+PKGFlow automatically mounts DMG files and extracts `.pkg` installers, then presents an interactive menu for package selection and installation.
 
-Initially built to help install VST plugins, but works with any DMG containing `.pkg` installers, or simply pure `.pkg` files.
+Initially built to help install a massive library of VST plugins, but works with any DMG containing `.pkg` installers, or simply pure `.pkg` files.
 
 ## Features
 
