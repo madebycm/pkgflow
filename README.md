@@ -15,7 +15,7 @@ Initially built to help install a massive library of VST plugins, but works with
 ## Usage
 
 ```bash
-./pkg_installer.sh
+./pkgflow.sh
 ```
 
 ## Example Output
