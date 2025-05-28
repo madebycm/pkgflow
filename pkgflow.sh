@@ -11,8 +11,69 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Default settings
+SKIP_VERIFICATION=true  # Fast mode enabled by default
+TARGET="/"
+
+# Function to show help
+show_help() {
+    echo -e "${BLUE}PKGFlow - macOS Package Installer${NC}"
+    echo
+    echo "Usage:"
+    echo "  pkgflow [options] [file.pkg|file.dmg]"
+    echo
+    echo "Options:"
+    echo "  --install              Install pkgflow globally"
+    echo "  --uninstall            Remove pkgflow from system"
+    echo "  --verify, -v           Enable package verification (disabled by default)"
+    echo "  --target <path>        Set custom install target (default: /)"
+    echo "  --help, -h             Show this help message"
+    echo
+    echo "Examples:"
+    echo "  pkgflow                           # Interactive mode for all packages in current directory"
+    echo "  pkgflow MyApp.pkg                 # Install specific package"
+    echo "  pkgflow --verify MyApp.dmg        # Install from DMG with verification"
+    echo "  pkgflow --target /tmp MyApp.pkg   # Install to custom location"
+    echo
+    exit 0
+}
+
+# Parse command line arguments
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install)
+            INSTALL_MODE=true
+            shift
+            ;;
+        --uninstall)
+            UNINSTALL_MODE=true
+            shift
+            ;;
+        --verify|-v)
+            SKIP_VERIFICATION=false
+            shift
+            ;;
+        --target)
+            TARGET="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_help
+            ;;
+        -*)
+            echo -e "${RED}Unknown option: $1${NC}"
+            show_help
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
 # Check if script is being run with install flag
-if [ "$1" = "--install" ]; then
+if [ "$INSTALL_MODE" = true ]; then
     echo -e "${BLUE}Installing PKGFlow...${NC}"
     
     # Create local bin directory if it doesn't exist
@@ -65,7 +126,7 @@ if [ "$1" = "--install" ]; then
 fi
 
 # Check if script is being run with uninstall flag
-if [ "$1" = "--uninstall" ]; then
+if [ "$UNINSTALL_MODE" = true ]; then
     echo -e "${YELLOW}Uninstalling PKGFlow...${NC}"
     
     # Remove pkgflow from local bin
@@ -94,11 +155,124 @@ if [ "$1" = "--uninstall" ]; then
     exit 0
 fi
 
+# Handle single file installation
+if [ ${#POSITIONAL_ARGS[@]} -gt 0 ]; then
+    TARGET_FILE="${POSITIONAL_ARGS[0]}"
+    
+    if [ ! -f "$TARGET_FILE" ]; then
+        echo -e "${RED}Error: File not found: $TARGET_FILE${NC}"
+        exit 1
+    fi
+    
+    # Check file extension
+    if [[ "$TARGET_FILE" != *.pkg && "$TARGET_FILE" != *.dmg ]]; then
+        echo -e "${RED}Error: File must be a .pkg or .dmg file${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Installing package: $(basename "$TARGET_FILE")${NC}"
+    echo "Target: $TARGET"
+    
+    if [ "$SKIP_VERIFICATION" = false ]; then
+        echo -ne "Verifying package... "
+        if pkgutil --check-signature "$TARGET_FILE" &>/dev/null; then
+            echo -e "${GREEN}✓ Valid${NC}"
+        else
+            echo -e "${RED}✗ Invalid or unsigned${NC}"
+            read -p "Continue anyway? (y/N): " confirm
+            if [[ ! $confirm =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    fi
+    
+    # Handle DMG files
+    if [[ "$TARGET_FILE" == *.dmg ]]; then
+        TEMP_DIR=$(mktemp -d)
+        trap "rm -rf \"$TEMP_DIR\"" EXIT
+        
+        mount_point=$(mktemp -d)
+        echo -ne "Mounting DMG... "
+        
+        if hdiutil attach "$TARGET_FILE" -mountpoint "$mount_point" -nobrowse -noautoopen &>/dev/null; then
+            echo -e "${GREEN}✓${NC}"
+            
+            # Find PKG files in the mounted DMG
+            found_pkgs=()
+            while IFS= read -r -d '' pkg; do
+                found_pkgs+=("$pkg")
+            done < <(find "$mount_point" -name "*.pkg" -print0 2>/dev/null)
+            
+            if [ ${#found_pkgs[@]} -eq 0 ]; then
+                echo -e "${RED}No .pkg files found in DMG${NC}"
+                hdiutil detach "$mount_point" &>/dev/null
+                rmdir "$mount_point"
+                exit 1
+            elif [ ${#found_pkgs[@]} -eq 1 ]; then
+                # Single package found, install it
+                pkg="${found_pkgs[0]}"
+                echo -e "${GREEN}Installing: $(basename "$pkg")${NC}"
+                if sudo installer -pkg "$pkg" -target "$TARGET"; then
+                    echo -e "${GREEN}✓ Successfully installed $(basename "$pkg")${NC}"
+                else
+                    echo -e "${RED}✗ Failed to install $(basename "$pkg")${NC}"
+                    hdiutil detach "$mount_point" &>/dev/null
+                    rmdir "$mount_point"
+                    exit 1
+                fi
+            else
+                # Multiple packages found, let user choose
+                echo -e "${YELLOW}Multiple packages found in DMG:${NC}"
+                for i in "${!found_pkgs[@]}"; do
+                    echo "$((i+1)). $(basename "${found_pkgs[$i]}")"
+                done
+                read -p "Select package to install (1-${#found_pkgs[@]}): " choice
+                
+                if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#found_pkgs[@]} ]; then
+                    pkg="${found_pkgs[$((choice-1))]}"
+                    echo -e "${GREEN}Installing: $(basename "$pkg")${NC}"
+                    if sudo installer -pkg "$pkg" -target "$TARGET"; then
+                        echo -e "${GREEN}✓ Successfully installed $(basename "$pkg")${NC}"
+                    else
+                        echo -e "${RED}✗ Failed to install $(basename "$pkg")${NC}"
+                    fi
+                else
+                    echo -e "${RED}Invalid selection${NC}"
+                fi
+            fi
+            
+            hdiutil detach "$mount_point" &>/dev/null
+            rmdir "$mount_point"
+        else
+            echo -e "${RED}✗ Failed to mount DMG${NC}"
+            exit 1
+        fi
+    else
+        # Direct PKG installation
+        echo -e "${GREEN}Installing package...${NC}"
+        if sudo installer -pkg "$TARGET_FILE" -target "$TARGET"; then
+            echo -e "${GREEN}✓ Successfully installed $(basename "$TARGET_FILE")${NC}"
+        else
+            echo -e "${RED}✗ Failed to install $(basename "$TARGET_FILE")${NC}"
+            exit 1
+        fi
+    fi
+    
+    exit 0
+fi
+
+# Interactive mode - process all packages in directory
 # Clear screen
 clear
 
 echo -e "${BLUE}Package Installer Script${NC}"
 echo "========================="
+echo "Target: $TARGET"
+if [ "$SKIP_VERIFICATION" = true ]; then
+    echo -e "${YELLOW}Fast mode: Package verification disabled${NC}"
+else
+    echo -e "${GREEN}Package verification enabled${NC}"
+fi
 echo
 
 # Create temporary directory for extracted packages
@@ -267,13 +441,15 @@ get_package_info() {
     echo
 }
 
-# Verify all packages
-echo -e "${YELLOW}Verifying packages...${NC}"
-echo
-for i in "${!final_pkgs[@]}"; do
-    verify_package "${final_pkgs[$i]}" $i
-done
-echo
+# Verify all packages (only if verification is enabled)
+if [ "$SKIP_VERIFICATION" = false ]; then
+    echo -e "${YELLOW}Verifying packages...${NC}"
+    echo
+    for i in "${!final_pkgs[@]}"; do
+        verify_package "${final_pkgs[$i]}" $i
+    done
+    echo
+fi
 
 # Display package information
 for i in "${!final_pkgs[@]}"; do
@@ -357,7 +533,7 @@ while true; do
                         echo -e "${BLUE}Installing: $display_name${NC}"
                         
                         # Use sudo for installation
-                        if sudo installer -pkg "${final_pkgs[$i]}" -target /; then
+                        if sudo installer -pkg "${final_pkgs[$i]}" -target "$TARGET"; then
                             echo -e "${GREEN}✓ Successfully installed $display_name${NC}\n"
                         else
                             echo -e "${RED}✗ Failed to install $display_name${NC}\n"
