@@ -122,6 +122,22 @@ if [ "$INSTALL_MODE" = true ]; then
         echo -e "${YELLOW}Note: You may need to restart your terminal for PATH changes to take effect${NC}"
     fi
     
+    # Install Quick Action
+    echo -e "\n${BLUE}Installing Quick Action...${NC}"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    WORKFLOW_PATH="$SCRIPT_DIR/PKGFlow.workflow"
+    SERVICES_DIR="$HOME/Library/Services"
+    
+    if [ -d "$WORKFLOW_PATH" ]; then
+        mkdir -p "$SERVICES_DIR"
+        cp -R "$WORKFLOW_PATH" "$SERVICES_DIR/"
+        echo -e "${GREEN}✓ Quick Action installed${NC}"
+        echo -e "${BLUE}You can now right-click .pkg or .dmg files and select 'Install with PKGFlow'${NC}"
+        echo -e "${YELLOW}Note: You may need to enable the service in System Preferences > Extensions > Finder${NC}"
+    else
+        echo -e "${YELLOW}Quick Action workflow not found in script directory${NC}"
+    fi
+    
     exit 0
 fi
 
@@ -138,6 +154,15 @@ if [ "$UNINSTALL_MODE" = true ]; then
         echo -e "${GREEN}✓ Removed pkgflow from $LOCAL_BIN${NC}"
     else
         echo -e "${YELLOW}pkgflow not found in $LOCAL_BIN${NC}"
+    fi
+    
+    # Remove Quick Action
+    SERVICES_DIR="$HOME/Library/Services"
+    WORKFLOW_PATH="$SERVICES_DIR/PKGFlow.workflow"
+    
+    if [ -d "$WORKFLOW_PATH" ]; then
+        rm -rf "$WORKFLOW_PATH"
+        echo -e "${GREEN}✓ Quick Action removed${NC}"
     fi
     
     # Note about PATH cleanup
