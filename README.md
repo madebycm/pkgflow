@@ -15,6 +15,9 @@ We originally built this to make installing VST plugins easier, but it works gre
 - ✅ Let's you pick and choose which packages to install
 - 🚀 Installs multiple packages in one go
 - 🧹 Cleans up after itself (no leftover mounted volumes!)
+- 📁 Process entire folders full of packages
+- 🖱️ Right-click support via Quick Action (macOS Services)
+- ⚡ Fast mode by default (skip verification for speed)
 
 ## Getting Started
 
@@ -30,6 +33,7 @@ This will:
 - Copy the script to `~/.local/bin/pkgflow`
 - Add `~/.local/bin` to your PATH (if needed)
 - Make the `pkgflow` command available anywhere
+- Install a Quick Action for right-click functionality
 
 ### Uninstallation
 
@@ -47,21 +51,45 @@ pkgflow --uninstall
 
 This will:
 - Remove the `pkgflow` command from `~/.local/bin`
+- Remove the Quick Action from macOS Services
 - Note: PATH entries in shell config are left unchanged for safety
 
 ### Usage
 
-After installation, you can run PKGFlow from any directory:
+After installation, you have several ways to use PKGFlow:
+
+#### Interactive Mode (Current Directory)
 ```bash
 pkgflow
+```
+
+#### Process a Specific Folder
+```bash
+pkgflow /path/to/folder
+```
+
+#### Install a Single Package
+```bash
+pkgflow MyApp.pkg
+pkgflow MyApp.dmg
+```
+
+#### Right-Click Installation
+After installation, you can right-click any `.pkg`, `.dmg` file, or folder in Finder and select "Install with PKGFlow" from the Quick Actions menu.
+
+#### Advanced Options
+```bash
+# Enable package verification (slower but safer)
+pkgflow --verify MyApp.pkg
+
+# Install to custom location
+pkgflow --target /Applications MyApp.pkg
 ```
 
 Or, if you haven't installed it yet, run it directly:
 ```bash
 ./pkgflow.sh
 ```
-
-That's it! PKGFlow will find all the installable packages in your current directory and show you a nice menu.
 
 ## What You'll See
 
@@ -116,6 +144,17 @@ Here's what PKGFlow does for you:
 - You'll need to enter your admin password when installing
 - Selected packages have an `[X]` next to them
 - Everything gets cleaned up automatically - no manual unmounting needed!
+- Package verification is disabled by default for speed (use `--verify` to enable)
+- When processing folders, you'll see the interactive selection menu
+- Quick Action may need to be enabled in System Settings > Extensions > Finder
+
+## Quick Action Setup
+
+If the Quick Action doesn't appear after installation:
+1. Open System Settings
+2. Go to Extensions > Finder
+3. Enable "Install with PKGFlow"
+4. The option should now appear when right-clicking `.pkg` files, `.dmg` files, or folders
 
 ## About
 

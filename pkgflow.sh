@@ -20,7 +20,7 @@ show_help() {
     echo -e "${BLUE}PKGFlow - macOS Package Installer${NC}"
     echo
     echo "Usage:"
-    echo "  pkgflow [options] [file.pkg|file.dmg]"
+    echo "  pkgflow [options] [file.pkg|file.dmg|folder]"
     echo
     echo "Options:"
     echo "  --install              Install pkgflow globally"
@@ -32,6 +32,8 @@ show_help() {
     echo "Examples:"
     echo "  pkgflow                           # Interactive mode for all packages in current directory"
     echo "  pkgflow MyApp.pkg                 # Install specific package"
+    echo "  pkgflow MyApp.dmg                 # Install package from DMG"
+    echo "  pkgflow /path/to/folder           # Interactive mode for all packages in folder"
     echo "  pkgflow --verify MyApp.dmg        # Install from DMG with verification"
     echo "  pkgflow --target /tmp MyApp.pkg   # Install to custom location"
     echo
@@ -180,110 +182,118 @@ if [ "$UNINSTALL_MODE" = true ]; then
     exit 0
 fi
 
-# Handle single file installation
+# Handle single file or folder installation
 if [ ${#POSITIONAL_ARGS[@]} -gt 0 ]; then
-    TARGET_FILE="${POSITIONAL_ARGS[0]}"
+    TARGET_PATH="${POSITIONAL_ARGS[0]}"
     
-    if [ ! -f "$TARGET_FILE" ]; then
-        echo -e "${RED}Error: File not found: $TARGET_FILE${NC}"
-        exit 1
-    fi
-    
-    # Check file extension
-    if [[ "$TARGET_FILE" != *.pkg && "$TARGET_FILE" != *.dmg ]]; then
-        echo -e "${RED}Error: File must be a .pkg or .dmg file${NC}"
-        exit 1
-    fi
-    
-    echo -e "${BLUE}Installing package: $(basename "$TARGET_FILE")${NC}"
-    echo "Target: $TARGET"
-    
-    if [ "$SKIP_VERIFICATION" = false ]; then
-        echo -ne "Verifying package... "
-        if pkgutil --check-signature "$TARGET_FILE" &>/dev/null; then
-            echo -e "${GREEN}✓ Valid${NC}"
-        else
-            echo -e "${RED}✗ Invalid or unsigned${NC}"
-            read -p "Continue anyway? (y/N): " confirm
-            if [[ ! $confirm =~ ^[Yy]$ ]]; then
-                exit 1
+    # Check if it's a directory
+    if [ -d "$TARGET_PATH" ]; then
+        # Process folder - switch to interactive mode for that folder
+        cd "$TARGET_PATH" || exit 1
+        # Continue to interactive mode below
+    elif [ -f "$TARGET_PATH" ]; then
+        # Single file mode
+        TARGET_FILE="$TARGET_PATH"
+        
+        # Check file extension
+        if [[ "$TARGET_FILE" != *.pkg && "$TARGET_FILE" != *.dmg ]]; then
+            echo -e "${RED}Error: File must be a .pkg or .dmg file${NC}"
+            exit 1
+        fi
+        
+        echo -e "${BLUE}Installing package: $(basename "$TARGET_FILE")${NC}"
+        echo "Target: $TARGET"
+        
+        if [ "$SKIP_VERIFICATION" = false ]; then
+            echo -ne "Verifying package... "
+            if pkgutil --check-signature "$TARGET_FILE" &>/dev/null; then
+                echo -e "${GREEN}✓ Valid${NC}"
+            else
+                echo -e "${RED}✗ Invalid or unsigned${NC}"
+                read -p "Continue anyway? (y/N): " confirm
+                if [[ ! $confirm =~ ^[Yy]$ ]]; then
+                    exit 1
+                fi
             fi
         fi
-    fi
-    
-    # Handle DMG files
-    if [[ "$TARGET_FILE" == *.dmg ]]; then
-        TEMP_DIR=$(mktemp -d)
-        trap "rm -rf \"$TEMP_DIR\"" EXIT
         
-        mount_point=$(mktemp -d)
-        echo -ne "Mounting DMG... "
-        
-        if hdiutil attach "$TARGET_FILE" -mountpoint "$mount_point" -nobrowse -noautoopen &>/dev/null; then
-            echo -e "${GREEN}✓${NC}"
+        # Handle DMG files
+        if [[ "$TARGET_FILE" == *.dmg ]]; then
+            TEMP_DIR=$(mktemp -d)
+            trap "rm -rf \"$TEMP_DIR\"" EXIT
             
-            # Find PKG files in the mounted DMG
-            found_pkgs=()
-            while IFS= read -r -d '' pkg; do
-                found_pkgs+=("$pkg")
-            done < <(find "$mount_point" -name "*.pkg" -print0 2>/dev/null)
+            mount_point=$(mktemp -d)
+            echo -ne "Mounting DMG... "
             
-            if [ ${#found_pkgs[@]} -eq 0 ]; then
-                echo -e "${RED}No .pkg files found in DMG${NC}"
-                hdiutil detach "$mount_point" &>/dev/null
-                rmdir "$mount_point"
-                exit 1
-            elif [ ${#found_pkgs[@]} -eq 1 ]; then
-                # Single package found, install it
-                pkg="${found_pkgs[0]}"
-                echo -e "${GREEN}Installing: $(basename "$pkg")${NC}"
-                if sudo installer -pkg "$pkg" -target "$TARGET"; then
-                    echo -e "${GREEN}✓ Successfully installed $(basename "$pkg")${NC}"
-                else
-                    echo -e "${RED}✗ Failed to install $(basename "$pkg")${NC}"
+            if hdiutil attach "$TARGET_FILE" -mountpoint "$mount_point" -nobrowse -noautoopen &>/dev/null; then
+                echo -e "${GREEN}✓${NC}"
+                
+                # Find PKG files in the mounted DMG
+                found_pkgs=()
+                while IFS= read -r -d '' pkg; do
+                    found_pkgs+=("$pkg")
+                done < <(find "$mount_point" -name "*.pkg" -print0 2>/dev/null)
+                
+                if [ ${#found_pkgs[@]} -eq 0 ]; then
+                    echo -e "${RED}No .pkg files found in DMG${NC}"
                     hdiutil detach "$mount_point" &>/dev/null
                     rmdir "$mount_point"
                     exit 1
-                fi
-            else
-                # Multiple packages found, let user choose
-                echo -e "${YELLOW}Multiple packages found in DMG:${NC}"
-                for i in "${!found_pkgs[@]}"; do
-                    echo "$((i+1)). $(basename "${found_pkgs[$i]}")"
-                done
-                read -p "Select package to install (1-${#found_pkgs[@]}): " choice
-                
-                if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#found_pkgs[@]} ]; then
-                    pkg="${found_pkgs[$((choice-1))]}"
+                elif [ ${#found_pkgs[@]} -eq 1 ]; then
+                    # Single package found, install it
+                    pkg="${found_pkgs[0]}"
                     echo -e "${GREEN}Installing: $(basename "$pkg")${NC}"
                     if sudo installer -pkg "$pkg" -target "$TARGET"; then
                         echo -e "${GREEN}✓ Successfully installed $(basename "$pkg")${NC}"
                     else
                         echo -e "${RED}✗ Failed to install $(basename "$pkg")${NC}"
+                        hdiutil detach "$mount_point" &>/dev/null
+                        rmdir "$mount_point"
+                        exit 1
                     fi
                 else
-                    echo -e "${RED}Invalid selection${NC}"
+                    # Multiple packages found, let user choose
+                    echo -e "${YELLOW}Multiple packages found in DMG:${NC}"
+                    for i in "${!found_pkgs[@]}"; do
+                        echo "$((i+1)). $(basename "${found_pkgs[$i]}")"
+                    done
+                    read -p "Select package to install (1-${#found_pkgs[@]}): " choice
+                    
+                    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#found_pkgs[@]} ]; then
+                        pkg="${found_pkgs[$((choice-1))]}"
+                        echo -e "${GREEN}Installing: $(basename "$pkg")${NC}"
+                        if sudo installer -pkg "$pkg" -target "$TARGET"; then
+                            echo -e "${GREEN}✓ Successfully installed $(basename "$pkg")${NC}"
+                        else
+                            echo -e "${RED}✗ Failed to install $(basename "$pkg")${NC}"
+                        fi
+                    else
+                        echo -e "${RED}Invalid selection${NC}"
+                    fi
                 fi
+                
+                hdiutil detach "$mount_point" &>/dev/null
+                rmdir "$mount_point"
+            else
+                echo -e "${RED}✗ Failed to mount DMG${NC}"
+                exit 1
             fi
-            
-            hdiutil detach "$mount_point" &>/dev/null
-            rmdir "$mount_point"
         else
-            echo -e "${RED}✗ Failed to mount DMG${NC}"
-            exit 1
+            # Direct PKG installation
+            echo -e "${GREEN}Installing package...${NC}"
+            if sudo installer -pkg "$TARGET_FILE" -target "$TARGET"; then
+                echo -e "${GREEN}✓ Successfully installed $(basename "$TARGET_FILE")${NC}"
+            else
+                echo -e "${RED}✗ Failed to install $(basename "$TARGET_FILE")${NC}"
+                exit 1
+            fi
         fi
+        
+        exit 0
     else
-        # Direct PKG installation
-        echo -e "${GREEN}Installing package...${NC}"
-        if sudo installer -pkg "$TARGET_FILE" -target "$TARGET"; then
-            echo -e "${GREEN}✓ Successfully installed $(basename "$TARGET_FILE")${NC}"
-        else
-            echo -e "${RED}✗ Failed to install $(basename "$TARGET_FILE")${NC}"
-            exit 1
-        fi
+        echo -e "${RED}Error: Path not found: $TARGET_PATH${NC}"
+        exit 1
     fi
-    
-    exit 0
 fi
 
 # Interactive mode - process all packages in directory

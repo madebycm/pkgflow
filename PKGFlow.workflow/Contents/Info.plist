@@ -25,6 +25,7 @@
 			<array>
 				<string>com.apple.installer-package-archive</string>
 				<string>com.apple.disk-image</string>
+				<string>public.folder</string>
 			</array>
 		</dict>
 	</array>
